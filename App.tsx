@@ -9,26 +9,34 @@ const App: React.FC = () => {
   const [roomCode, setRoomCode] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  const handleCreateRoom = (nickname: string) => {
+  const handleCreateRoom = async (nickname: string) => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     
-    // Регистрируем комнату локально для симуляции БД
-    const rooms = JSON.parse(localStorage.getItem('twvoice_rooms') || '[]');
-    localStorage.setItem('twvoice_rooms', JSON.stringify([...rooms, code]));
+    try {
+      // Регистрируем комнату на сервере
+      await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
 
-    const newUser: User = {
-      id: Math.random().toString(36).substring(2, 9),
-      nickname,
-      isAdmin: true,
-      isOnline: true,
-      isMicOn: false,
-      isCamOn: false,
-      isDeafened: false,
-      isSharingScreen: false,
-    };
-    setRoomCode(code);
-    setCurrentUser(newUser);
-    setCurrentPage(AppState.ROOM);
+      const newUser: User = {
+        id: Math.random().toString(36).substring(2, 9),
+        nickname,
+        isAdmin: true,
+        isOnline: true,
+        isMicOn: false,
+        isCamOn: false,
+        isDeafened: false,
+        isSharingScreen: false,
+      };
+      setRoomCode(code);
+      setCurrentUser(newUser);
+      setCurrentPage(AppState.ROOM);
+    } catch (err) {
+      console.error("Failed to create room on server:", err);
+      alert("Ошибка при создании комнаты. Попробуйте еще раз.");
+    }
   };
 
   const handleJoinRoom = (nickname: string, code: string) => {
@@ -42,7 +50,7 @@ const App: React.FC = () => {
       isDeafened: false,
       isSharingScreen: false,
     };
-    setRoomCode(code);
+    setRoomCode(code.toUpperCase());
     setCurrentUser(newUser);
     setCurrentPage(AppState.ROOM);
   };
