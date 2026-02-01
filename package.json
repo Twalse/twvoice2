@@ -1,15 +1,16 @@
-
 {
   "name": "twvoice",
   "version": "2.1.2",
   "description": "Premium Voice & Video Chat for Gamers",
   "main": "server.js",
   "scripts": {
+    "build": "esbuild index.tsx --bundle --outfile=index.js --format=esm --loader:.tsx=tsx --loader:.ts=ts --minify --external:react --external:react-dom --external:lucide-react",
     "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "esbuild": "^0.24.0"
   },
   "engines": {
     "node": ">=18.0.0"
