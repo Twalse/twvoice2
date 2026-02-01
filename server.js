@@ -10,11 +10,20 @@ const PORT = process.env.PORT || 10000;
 console.log('--- TWVOICE DEPLOY LOG ---');
 console.log('Timestamp:', new Date().toISOString());
 console.log('Working Dir:', process.cwd());
-console.log('__dirname:', __dirname);
+
+// Явно настраиваем MIME-типы
+express.static.mime.define({
+  'application/javascript': ['js', 'mjs']
+});
 
 // Раздаем статику из корня
-// Так как все файлы (index.html, index.tsx) лежат в корне, используем __dirname
-app.use(express.static(__dirname));
+app.use(express.static(__dirname, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
 
 // Все GET запросы отправляем на index.html (поддержка SPA)
 app.get('*', (req, res) => {
