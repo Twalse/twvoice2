@@ -5,7 +5,7 @@
   "description": "Premium Voice & Video Chat for Gamers",
   "main": "server.js",
   "scripts": {
-    "build": "esbuild index.tsx --bundle --outfile=index.js --format=esm --minify --loader:.tsx=tsx --loader:.ts=ts",
+    "build": "esbuild index.tsx --bundle --outfile=index.js --format=esm --minify --loader:.tsx=tsx --loader:.ts=ts --platform=browser",
     "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
