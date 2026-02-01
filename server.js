@@ -6,36 +6,31 @@ const app = express();
 
 const PORT = process.env.PORT || 10000;
 
-// Логирование для отладки на Render
-console.log('--- STARTUP CHECK ---');
-console.log('Current directory:', __dirname);
-try {
-  const files = fs.readdirSync(__dirname);
-  console.log('Files in root:', files);
-} catch (e) {
-  console.error('Could not read directory');
-}
+// Логируем содержимое папки при старте для диагностики
+console.log('--- SERVER DIAGNOSTICS ---');
+console.log('Current working directory:', process.cwd());
+console.log('Files in directory:', fs.readdirSync(__dirname));
 
-// Принудительная обработка JS файлов для избежания ошибок MIME-типа
+// Принудительная отдача index.js с корректным MIME-типом
 app.get('/index.js', (req, res) => {
-  const filePath = path.join(__dirname, 'index.js');
+  const filePath = path.resolve(__dirname, 'index.js');
   if (fs.existsSync(filePath)) {
     res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
     return res.sendFile(filePath);
   } else {
-    console.error('ERROR: index.js not found at', filePath);
-    res.status(404).send('console.error("index.js not found - build failed?")');
+    console.error('CRITICAL ERROR: index.js not found at', filePath);
+    res.status(404).send('console.error("index.js not found. Check build logs.")');
   }
 });
 
-// Раздача остальных статических файлов
+// Раздача всей статики
 app.use(express.static(__dirname));
 
-// SPA Fallback: все остальные запросы отдают index.html
+// Поддержка SPA: любой другой маршрут отдает index.html
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.resolve(__dirname, 'index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`✅ TwVoice server is running on port ${PORT}`);
 });
