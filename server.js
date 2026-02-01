@@ -1,43 +1,35 @@
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const app = express();
 
-// Render использует порт 10000 по умолчанию
 const PORT = process.env.PORT || 10000;
 
-// Логируем окружение для диагностики
-console.log('--- TWVOICE DEPLOY LOG ---');
-console.log('Timestamp:', new Date().toISOString());
-console.log('Working Dir:', process.cwd());
+console.log('--- TWVOICE DEPLOYMENT STATUS ---');
+console.log('Current directory:', __dirname);
+console.log('Files in directory:', fs.readdirSync(__dirname));
 
-// Явно настраиваем MIME-типы
-express.static.mime.define({
-  'application/javascript': ['js', 'mjs']
+// Принудительно устанавливаем MIME-тип для JS модулей
+app.get('/index.js', (req, res) => {
+  const filePath = path.join(__dirname, 'index.js');
+  if (fs.existsSync(filePath)) {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.sendFile(filePath);
+  } else {
+    console.error('CRITICAL ERROR: index.js was not found! Check build logs.');
+    res.status(404).send('index.js not found. Make sure "npm run build" succeeded.');
+  }
 });
 
-// Раздаем статику из корня
-app.use(express.static(__dirname, {
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    }
-  }
-}));
+// Стандартная раздача статики для остальных файлов
+app.use(express.static(__dirname));
 
-// Все GET запросы отправляем на index.html (поддержка SPA)
+// SPA роутинг: все остальные запросы отдают index.html
 app.get('*', (req, res) => {
-  const indexPath = path.join(__dirname, 'index.html');
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      console.error('ERROR: Could not find index.html at', indexPath);
-      res.status(500).send('File index.html not found. Check deployment structure.');
-    }
-  });
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server successfully started on port ${PORT}`);
-  console.log(`🔗 App is available at: http://0.0.0.0:${PORT}`);
-  console.log('--------------------------');
+  console.log(`✅ App server is running on port ${PORT}`);
 });
