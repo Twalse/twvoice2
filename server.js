@@ -6,10 +6,27 @@ const app = express();
 
 const PORT = process.env.PORT || 10000;
 
-// Логируем содержимое папки при старте для диагностики
-console.log('--- SERVER DIAGNOSTICS ---');
-console.log('Current working directory:', process.cwd());
-console.log('Files in directory:', fs.readdirSync(__dirname));
+// Middleware для обработки JSON
+app.use(express.json());
+
+// Временное хранилище комнат (в памяти сервера)
+let activeRooms = [];
+
+// API для регистрации новой комнаты
+app.post('/api/rooms', (req, res) => {
+  const { code } = req.body;
+  if (code && !activeRooms.includes(code.toUpperCase())) {
+    activeRooms.push(code.toUpperCase());
+    console.log(`Room created: ${code}. Total active rooms: ${activeRooms.length}`);
+  }
+  res.json({ success: true });
+});
+
+// API для проверки существования комнаты
+app.get('/api/rooms/:code', (req, res) => {
+  const exists = activeRooms.includes(req.params.code.toUpperCase());
+  res.json({ exists });
+});
 
 // Принудительная отдача index.js с корректным MIME-типом
 app.get('/index.js', (req, res) => {
@@ -18,15 +35,14 @@ app.get('/index.js', (req, res) => {
     res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
     return res.sendFile(filePath);
   } else {
-    console.error('CRITICAL ERROR: index.js not found at', filePath);
     res.status(404).send('console.error("index.js not found. Check build logs.")');
   }
 });
 
-// Раздача всей статики
+// Раздача статики
 app.use(express.static(__dirname));
 
-// Поддержка SPA: любой другой маршрут отдает index.html
+// Поддержка SPA
 app.get('*', (req, res) => {
   res.sendFile(path.resolve(__dirname, 'index.html'));
 });
