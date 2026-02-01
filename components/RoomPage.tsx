@@ -19,10 +19,7 @@ interface RoomPageProps {
 }
 
 const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
-  const [participants, setParticipants] = useState<User[]>([
-    { ...user, isOnline: true }
-  ]);
-
+  const [participants, setParticipants] = useState<User[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { id: '1', senderId: 'system', senderNickname: 'TwVoice', text: `Добро пожаловать в комнату ${roomCode}!`, timestamp: Date.now(), isSystem: true },
   ]);
@@ -40,6 +37,47 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
   const localStreamRef = useRef<MediaStream | null>(null);
   const lastPlayedSoundMsgId = useRef<string | null>(null);
 
+  // Основной цикл синхронизации с сервером
+  useEffect(() => {
+    const syncWithServer = async () => {
+      try {
+        const myData = {
+          ...user,
+          isMicOn,
+          isCamOn,
+          isSharingScreen: isScreenSharing,
+          isDeafened,
+        };
+
+        const response = await fetch(`/api/rooms/${roomCode}/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user: myData })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Интегрируем полученные данные, сохраняя локальный стрим для самого себя
+          const updatedParticipants = data.participants.map((p: User) => {
+            if (p.id === user.id) {
+              return { ...p, stream: localStreamRef.current || undefined };
+            }
+            return p;
+          });
+          setParticipants(updatedParticipants);
+        }
+      } catch (err) {
+        console.error("Sync error:", err);
+      }
+    };
+
+    // Первый запуск
+    syncWithServer();
+    // Интервал 3 секунды
+    const interval = setInterval(syncWithServer, 3000);
+    return () => clearInterval(interval);
+  }, [roomCode, user, isMicOn, isCamOn, isScreenSharing, isDeafened]);
+
   useEffect(() => {
     const playJoinSound = () => {
       const audio = new Audio(SYSTEM_SOUNDS.join);
@@ -51,43 +89,27 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
     playJoinSound();
   }, []);
 
-  // Effect to listen for global sounds in chat messages
   useEffect(() => {
     const lastMsg = chatMessages[chatMessages.length - 1];
     if (lastMsg?.soundUrl && lastMsg.id !== lastPlayedSoundMsgId.current) {
       lastPlayedSoundMsgId.current = lastMsg.id;
-      // Play the sound locally
       const audio = new Audio(lastMsg.soundUrl);
       audio.volume = 0.5;
       audio.play().catch(e => console.warn("Global sound playback failed:", e));
     }
   }, [chatMessages]);
 
-  useEffect(() => {
-    setParticipants(prev => prev.map(p => p.id === user.id ? { 
-      ...p, 
-      isMicOn, 
-      isCamOn, 
-      isSharingScreen: isScreenSharing, 
-      isDeafened,
-      stream: localStreamRef.current || undefined 
-    } : p));
-
-    if (isScreenSharing) {
-      const audio = new Audio(SYSTEM_SOUNDS.streamStart);
-      audio.play().catch(() => {});
-    }
-  }, [isMicOn, isCamOn, isScreenSharing, isDeafened, user.id]);
-
   const handleAddNPC = () => {
-    const names = ["ShadowHunter", "CyberGhost", "EliteSniper", "Rogue_One", "Viper_X", "BlazeMaster", "FrostByte", "IronFist", "Nexus_Player"];
+    // В многопользовательском режиме NPC тоже должны регистрироваться на сервере, 
+    // но для простоты оставим это как локальную фичу для тестов визуализации
+    const names = ["ShadowHunter", "CyberGhost", "EliteSniper"];
     const name = names[Math.floor(Math.random() * names.length)] + "_" + Math.floor(Math.random() * 100);
     const newNPC: User = {
       id: 'npc_' + Math.random().toString(36).substr(2, 5),
       nickname: name,
       isAdmin: false,
       isOnline: true,
-      isMicOn: false,
+      isMicOn: true, // NPC всегда "говорят" (симуляция)
       isCamOn: false,
       isDeafened: false,
       isSharingScreen: false
@@ -96,7 +118,6 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
   };
 
   const handleGlobalSound = (soundUrl: string, label: string) => {
-    // Add message to chat to trigger sound for all (simulated)
     const soundMessage: ChatMessage = {
       id: Date.now().toString() + Math.random(),
       senderId: user.id,
@@ -167,6 +188,8 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
   };
 
   const handleKick = (userId: string) => {
+    // В текущей реализации кик просто убирает из локального списка, 
+    // но в идеале нужно отправлять запрос на сервер.
     setParticipants(prev => prev.filter(p => p.id !== userId));
   };
 
@@ -190,15 +213,6 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
               <Activity className="w-3 h-3 text-green-500 animate-pulse" />
               <span className="text-[10px] font-black text-green-500 tracking-widest uppercase">Live</span>
             </div>
-            {user.isAdmin && (
-              <button 
-                onClick={handleAddNPC}
-                className="flex items-center space-x-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/10 transition-all font-black text-[10px] uppercase tracking-widest text-[var(--accent)]"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>Добавить NPC</span>
-              </button>
-            )}
           </div>
 
           <div className="flex items-center space-x-4">
@@ -241,9 +255,16 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
              </div>
            ) : (
              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-10 items-center justify-center h-full">
-                {participants.map(p => (
-                  <VideoTile key={p.id} participant={p} viewerIsAdmin={user.isAdmin} onKick={handleKick} onMute={handleMute} />
-                ))}
+                {participants.length > 0 ? (
+                  participants.map(p => (
+                    <VideoTile key={p.id} participant={p} viewerIsAdmin={user.isAdmin} onKick={handleKick} onMute={handleMute} />
+                  ))
+                ) : (
+                   <div className="col-span-full flex flex-col items-center justify-center text-gray-500 opacity-30">
+                      <Activity className="w-20 h-20 mb-4 animate-pulse" />
+                      <p className="font-black uppercase tracking-[0.5em]">Синхронизация...</p>
+                   </div>
+                )}
              </div>
            )}
         </main>
