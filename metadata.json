@@ -1,0 +1,9 @@
+{
+  "name": "Copy of Copy of TwVoice",
+  "description": "A stylish room-based voice and video chat application for gamers, featuring screen sharing, soundpad, and real-time chat.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "display-capture"
+  ]
+}
