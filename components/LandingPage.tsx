@@ -11,6 +11,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onCreate, onJoin }) => {
   const [nickname, setNickname] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleCreate = () => {
@@ -18,16 +19,29 @@ const LandingPage: React.FC<LandingPageProps> = ({ onCreate, onJoin }) => {
     onCreate(nickname);
   };
 
-  const handleJoinClick = () => {
+  const handleJoinClick = async () => {
     if (!nickname.trim()) return;
+    
     if (isJoining) {
-      const activeRooms = JSON.parse(localStorage.getItem('twvoice_rooms') || '[]');
-      if (!activeRooms.includes(roomCode.toUpperCase())) {
-        setError('Комната не найдена. Проверьте код.');
+      if (!roomCode.trim()) return;
+      
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/rooms/${roomCode.toUpperCase()}`);
+        const data = await res.json();
+        
+        if (data.exists) {
+          onJoin(nickname, roomCode.toUpperCase());
+        } else {
+          setError('Комната не найдена. Проверьте код.');
+          setTimeout(() => setError(''), 3000);
+        }
+      } catch (err) {
+        setError('Ошибка связи с сервером.');
         setTimeout(() => setError(''), 3000);
-        return;
+      } finally {
+        setLoading(false);
       }
-      onJoin(nickname, roomCode.toUpperCase());
     } else {
       setIsJoining(true);
     }
@@ -114,11 +128,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onCreate, onJoin }) => {
               </div>
               <button
                 onClick={handleJoinClick}
-                disabled={!roomCode.trim()}
+                disabled={!roomCode.trim() || loading}
                 className="w-full flex items-center justify-center space-x-3 bg-[#8A2BE2] hover:bg-[#9d40f5] text-white py-6 rounded-[24px] font-black text-xl transition-all shadow-[0_15px_30px_rgba(138,43,226,0.3)] disabled:opacity-50 hover:scale-[1.02] active:scale-95"
               >
-                <span>ПРИСОЕДИНИТЬСЯ</span>
-                <ArrowRight className="w-6 h-6" />
+                <span>{loading ? 'ПРОВЕРКА...' : 'ПРИСОЕДИНИТЬСЯ'}</span>
+                {!loading && <ArrowRight className="w-6 h-6" />}
               </button>
             </div>
           )}
@@ -126,7 +140,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onCreate, onJoin }) => {
           <div className="pt-8 border-t border-white/10 flex items-center justify-between">
             <div className="flex items-center space-x-3 text-gray-300">
               <ShieldCheck className="w-6 h-6 text-green-400" />
-              <span className="text-[12px] font-black uppercase tracking-[0.2em]">P2P ШИФРОВАНИЕ</span>
+              <span className="text-[12px] font-black uppercase tracking-[0.2em]">GLOBAL P2P ACTIVE</span>
             </div>
             <span className="text-[12px] text-gray-400 font-black">v2.1 GOLD</span>
           </div>
