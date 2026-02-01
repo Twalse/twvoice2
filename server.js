@@ -6,26 +6,19 @@ const app = express();
 
 const PORT = process.env.PORT || 10000;
 
-console.log('--- TWVOICE DEPLOYMENT STATUS ---');
-console.log('Current directory:', __dirname);
-console.log('Files in directory:', fs.readdirSync(__dirname));
+console.log('--- SERVER STARTUP ---');
+console.log('Directory:', __dirname);
+const files = fs.readdirSync(__dirname);
+console.log('Files present:', files);
 
-// Принудительно устанавливаем MIME-тип для JS модулей
-app.get('/index.js', (req, res) => {
-  const filePath = path.join(__dirname, 'index.js');
-  if (fs.existsSync(filePath)) {
-    res.setHeader('Content-Type', 'application/javascript');
-    res.sendFile(filePath);
-  } else {
-    console.error('CRITICAL ERROR: index.js was not found! Check build logs.');
-    res.status(404).send('index.js not found. Make sure "npm run build" succeeded.');
-  }
-});
+if (!files.includes('index.js')) {
+  console.error('⚠️ WARNING: index.js not found in directory! Build might have failed.');
+}
 
-// Стандартная раздача статики для остальных файлов
+// Служим статику. Express сам выставляет правильные MIME-типы.
 app.use(express.static(__dirname));
 
-// SPA роутинг: все остальные запросы отдают index.html
+// Поддержка SPA: все запросы, которые не попали в статику, отдают index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
