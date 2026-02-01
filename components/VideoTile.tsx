@@ -38,7 +38,6 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
       try {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         
-        // Ensure AudioContext is resumed (autoplay policy)
         if (audioContext.state === 'suspended') {
           audioContext.resume();
         }
@@ -46,7 +45,7 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
         const source = audioContext.createMediaStreamSource(participant.stream);
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.5;
+        analyser.smoothingTimeConstant = 0.4; // Чуть меньше сглаживания в самом анализаторе
         source.connect(analyser);
         
         analyserRef.current = analyser;
@@ -61,8 +60,11 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
             sum += dataArrayRef.current[i];
           }
           const average = sum / dataArrayRef.current.length;
-          const normalized = Math.min(1, average / 45); 
-          setVolume(prev => prev + (normalized - prev) * 0.5); 
+          
+          // ПОВЫШЕННАЯ ЧУВСТВИТЕЛЬНОСТЬ: делим на 15 вместо 45
+          const normalized = Math.min(1, average / 15); 
+          // БОЛЕЕ БЫСТРАЯ РЕАКЦИЯ: коэффициент 0.7 вместо 0.5
+          setVolume(prev => prev + (normalized - prev) * 0.7); 
           
           animationRef.current = requestAnimationFrame(updateRealVolume);
         };
@@ -82,18 +84,18 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
       let lastUpdate = 0;
 
       const updateSimulatedVolume = (time: number) => {
-        if (time - lastUpdate > 70) {
-          if (Math.random() > 0.8) {
-            targetVol = Math.random() * 0.8;
-          } else if (Math.random() > 0.5) {
-            targetVol *= 0.5;
+        if (time - lastUpdate > 50) { // Симуляция тоже стала быстрее
+          if (Math.random() > 0.7) {
+            targetVol = Math.random() * 0.9;
+          } else if (Math.random() > 0.4) {
+            targetVol *= 0.6;
           } else {
             targetVol = 0;
           }
           lastUpdate = time;
         }
 
-        currentVol += (targetVol - currentVol) * 0.25;
+        currentVol += (targetVol - currentVol) * 0.35;
         setVolume(Math.max(0, currentVol));
         animationRef.current = requestAnimationFrame(updateSimulatedVolume);
       };
@@ -103,21 +105,22 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
     }
   }, [participant.isMicOn, participant.isOnline, participant.stream]);
 
-  const glowIntensity = volume * 140;
-  const scale = 1 + (volume * 0.28);
-  const borderOpacity = Math.min(1, volume * 2.5 + 0.1);
-  const borderWidth = volume > 0.05 ? Math.max(3, volume * 14) : (participant.isMicOn ? 2 : 1);
+  // Усиление визуальных эффектов
+  const glowIntensity = volume * 180;
+  const scale = 1 + (volume * 0.35);
+  const borderOpacity = Math.min(1, volume * 3.5 + 0.2);
+  const borderWidth = volume > 0.02 ? Math.max(3, volume * 18) : (participant.isMicOn ? 2 : 1);
 
   return (
     <div 
       className={`
-        relative bg-card-custom rounded-[48px] border transition-all duration-300 group shadow-[0_20px_40px_-10px_rgba(0,0,0,0.5)]
+        relative bg-card-custom rounded-[48px] border transition-all duration-200 group shadow-[0_20px_40px_-10px_rgba(0,0,0,0.5)]
         ${compact ? 'w-full aspect-[1.5/1] mb-4' : 'w-full aspect-[1.5/1] max-w-2xl mx-auto'}
       `}
       style={{
-        borderColor: participant.isMicOn ? (volume > 0.05 ? `rgba(138, 43, 226, ${borderOpacity})` : 'rgba(138, 43, 226, 0.2)') : 'var(--border)',
+        borderColor: participant.isMicOn ? (volume > 0.02 ? `rgba(138, 43, 226, ${borderOpacity})` : 'rgba(138, 43, 226, 0.3)') : 'var(--border)',
         borderWidth: `${borderWidth}px`,
-        boxShadow: participant.isMicOn && volume > 0.05 ? `0 0 ${glowIntensity}px rgba(138, 43, 226, ${volume * 1.0})` : undefined
+        boxShadow: participant.isMicOn && volume > 0.02 ? `0 0 ${glowIntensity}px rgba(138, 43, 226, ${Math.min(1, volume * 1.5)})` : undefined
       }}
     >
       {/* ADMIN PANEL ON HOVER */}
@@ -149,7 +152,7 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
               style={{ 
                 backgroundColor: avatarColor,
                 transform: `scale(${scale})`,
-                boxShadow: volume > 0.05 ? `0 0 ${volume * 100}px ${avatarColor}aa` : 'none'
+                boxShadow: volume > 0.05 ? `0 0 ${volume * 120}px ${avatarColor}aa` : 'none'
               }}
               className={`
                   ${compact ? 'w-16 h-16' : 'w-32 h-32'} 
@@ -192,9 +195,9 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
       <div 
         className={`absolute inset-0 border-[4px] rounded-[48px] pointer-events-none transition-all duration-75`}
         style={{ 
-          borderColor: participant.isMicOn ? '#8A2BE2' : 'transparent', 
-          opacity: volume * 1.8,
-          boxShadow: `inset 0 0 ${volume * 80}px rgba(138, 43, 226, 0.7)`
+          borderColor: '#8A2BE2', 
+          opacity: volume * 2.2,
+          boxShadow: `inset 0 0 ${volume * 100}px rgba(138, 43, 226, 0.8)`
         }}
       ></div>
     </div>
