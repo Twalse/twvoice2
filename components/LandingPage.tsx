@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Plus, LogIn, ShieldCheck, ArrowRight, X } from 'lucide-react';
 
 interface LandingPageProps {
-  onCreate: (nickname: string) => void;
+  onCreate: (nickname: string) => Promise<void>;
   onJoin: (nickname: string, code: string) => void;
 }
 
@@ -14,13 +14,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ onCreate, onJoin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleCreate = () => {
-    if (!nickname.trim()) return;
-    onCreate(nickname);
+  const handleCreate = async () => {
+    if (!nickname.trim() || loading) return;
+    
+    setLoading(true);
+    try {
+      await onCreate(nickname);
+    } catch (err) {
+      setError('Ошибка при создании комнаты.');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleJoinClick = async () => {
-    if (!nickname.trim()) return;
+    if (!nickname.trim() || loading) return;
     
     if (isJoining) {
       if (!roomCode.trim()) return;
@@ -77,21 +86,23 @@ const LandingPage: React.FC<LandingPageProps> = ({ onCreate, onJoin }) => {
               <div className="grid grid-cols-2 gap-6">
                 <button
                   onClick={handleCreate}
-                  disabled={!nickname.trim()}
+                  disabled={!nickname.trim() || loading}
                   className="group flex flex-col items-center justify-center space-y-4 bg-[#353540] hover:bg-[#40404a] p-10 rounded-[32px] border border-white/10 transition-all disabled:opacity-40 disabled:grayscale hover:scale-[1.05] active:scale-95 shadow-2xl"
                 >
                   <div className="w-20 h-20 flex items-center justify-center rounded-[24px] bg-green-500/20 group-hover:bg-green-500/30 transition-colors shadow-xl">
-                    <Plus className="text-green-400 w-10 h-10" />
+                    <Plus className={`text-green-400 w-10 h-10 ${loading ? 'animate-spin' : ''}`} />
                   </div>
                   <div className="text-center">
-                    <p className="font-black text-white text-lg tracking-tight">СОЗДАТЬ</p>
+                    <p className="font-black text-white text-lg tracking-tight">
+                      {loading ? 'СОЗДАНИЕ...' : 'СОЗДАТЬ'}
+                    </p>
                     <p className="text-[12px] text-gray-400 mt-1 font-black tracking-widest">КОМНАТУ</p>
                   </div>
                 </button>
 
                 <button
                   onClick={handleJoinClick}
-                  disabled={!nickname.trim()}
+                  disabled={!nickname.trim() || loading}
                   className="group flex flex-col items-center justify-center space-y-4 bg-[#353540] hover:bg-[#40404a] p-10 rounded-[32px] border border-white/10 transition-all disabled:opacity-40 disabled:grayscale hover:scale-[1.05] active:scale-95 shadow-2xl"
                 >
                   <div className="w-20 h-20 flex items-center justify-center rounded-[24px] bg-[#4169E1]/20 group-hover:bg-[#4169E1]/30 transition-colors shadow-xl">
