@@ -5,6 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TwVoice - Твой голос в игре</title>
+    <script>
+        // Подавляем предупреждение Tailwind CDN в консоли
+        window.tailwind = { config: {} };
+        const consoleWarn = console.warn;
+        console.warn = (...args) => {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
+            consoleWarn.apply(console, args);
+        };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -95,7 +104,6 @@
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
         
-        /* Utility to hide horizontal scroll on mobile */
         .no-select { user-select: none; }
     </style>
 <script type="importmap">
@@ -111,6 +119,6 @@
 </head>
 <body>
     <div id="root"></div>
-    <script type="module" src="index.js"></script>
+    <script type="module" src="/index.js"></script>
 </body>
 </html>
