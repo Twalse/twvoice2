@@ -23,7 +23,6 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [isMicOn, setIsMicOn] = useState(false);
   const [isCamOn, setIsCamOn] = useState(false);
-  // Fixed: Renamed from isScreenSharing to isSharingScreen to match User type and fix scope errors
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   const [isSoundPadOpen, setIsSoundPadOpen] = useState(false);
@@ -35,36 +34,21 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
   const pendingSignals = useRef<any[]>([]);
   const remoteStreams = useRef<Map<string, MediaStream>>(new Map());
 
-  // Конфигурация WebRTC
-  const rtcConfig = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-  };
+  const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
   const createPeerConnection = (targetId: string) => {
     if (peerConnections.current.has(targetId)) return peerConnections.current.get(targetId)!;
-
     const pc = new RTCPeerConnection(rtcConfig);
-    
-    // Добавляем локальный аудио-трек в соединение
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => {
-        pc.addTrack(track, localStreamRef.current!);
-      });
+      localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
     }
-
     pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        pendingSignals.current.push({ to: targetId, type: 'candidate', data: event.candidate });
-      }
+      if (event.candidate) pendingSignals.current.push({ to: targetId, type: 'candidate', data: event.candidate });
     };
-
     pc.ontrack = (event) => {
-      console.log(`Received remote track from ${targetId}`);
       remoteStreams.current.set(targetId, event.streams[0]);
-      // Форсируем обновление UI, чтобы VideoTile увидел стрим
       setParticipants(prev => [...prev]);
     };
-
     peerConnections.current.set(targetId, pc);
     return pc;
   };
@@ -72,7 +56,6 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
   const handleSignal = async (signal: any) => {
     const { from, type, data } = signal;
     const pc = createPeerConnection(from);
-
     try {
       if (type === 'offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(data));
@@ -84,91 +67,80 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
       } else if (type === 'candidate') {
         await pc.addIceCandidate(new RTCIceCandidate(data));
       }
-    } catch (e) {
-      console.error("Signal handling error:", e);
-    }
+    } catch (e) { console.error("WebRTC Error:", e); }
   };
 
   useEffect(() => {
-    const syncWithServer = async () => {
+    const sync = async () => {
       try {
-        // Fixed: Use isSharingScreen which is now in scope
         const myData = { ...user, isMicOn, isCamOn, isSharingScreen, isDeafened };
         const signals = [...pendingSignals.current];
         pendingSignals.current = [];
 
-        const response = await fetch(`/api/rooms/${roomCode}/sync`, {
+        const res = await fetch(`/api/rooms/${roomCode}/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user: myData, signalsToSend: signals })
         });
 
-        if (response.ok) {
-          const data = await response.json();
+        if (res.ok) {
+          const data = await res.json();
+          for (const s of data.signalsForMe) await handleSignal(s);
           
-          // Обработка входящих сигналов
-          for (const sig of data.signalsForMe) {
-            await handleSignal(sig);
-          }
-
-          // Обновление участников и инициация Offer для новых
-          const updatedParticipants = data.participants.map((p: User) => {
+          const updated = data.participants.map((p: User) => {
             if (p.id === user.id) return { ...p, stream: localStreamRef.current || undefined };
-            
-            // Если мы видим участника, но еще не создали Offer (и мы "старше" по ID для избежания коллизий)
-            if (p.id !== user.id && !peerConnections.current.has(p.id)) {
-                // Инициируем соединение
-                const pc = createPeerConnection(p.id);
-                pc.createOffer().then(offer => {
-                    pc.setLocalDescription(offer);
-                    pendingSignals.current.push({ to: p.id, type: 'offer', data: offer });
-                });
+            if (!peerConnections.current.has(p.id) && p.id > user.id) {
+               const pc = createPeerConnection(p.id);
+               pc.createOffer().then(o => {
+                 pc.setLocalDescription(o);
+                 pendingSignals.current.push({ to: p.id, type: 'offer', data: o });
+               });
             }
-
             return { ...p, stream: remoteStreams.current.get(p.id) };
           });
-          
-          setParticipants(updatedParticipants);
+          setParticipants(updated);
           if (data.messages && data.messages.length !== chatMessages.length) setChatMessages(data.messages);
+        } else if (res.status === 404) {
+          onLeave();
+          alert("Комната была закрыта или удалена");
         }
-      } catch (err) {
-        console.error("Sync error:", err);
-      }
+      } catch (err) { console.error("Sync failure:", err); }
     };
 
-    const interval = setInterval(syncWithServer, 3000);
+    const interval = setInterval(sync, 2500);
     return () => {
-        clearInterval(interval);
-        peerConnections.current.forEach(pc => pc.close());
+      clearInterval(interval);
+      peerConnections.current.forEach(pc => pc.close());
     };
-    // Fixed: Use isSharingScreen which is now in scope
-  }, [roomCode, user, isMicOn, isCamOn, isSharingScreen, isDeafened, chatMessages.length]);
+  }, [roomCode, user.id, isMicOn, isCamOn, isSharingScreen, isDeafened]);
 
   const toggleMic = async () => {
     try {
       if (!localStreamRef.current) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        localStreamRef.current = stream;
-        // Добавляем трек во все существующие соединения
-        peerConnections.current.forEach(pc => {
-          stream.getTracks().forEach(track => pc.addTrack(track, stream));
-        });
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        localStreamRef.current = s;
+        peerConnections.current.forEach(pc => s.getTracks().forEach(t => pc.addTrack(t, s)));
       } else {
         localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !isMicOn);
       }
       setIsMicOn(!isMicOn);
-    } catch (err) {
-      alert("Доступ к микрофону отклонен");
-    }
+    } catch (e) { alert("Микрофон недоступен"); }
   };
 
   const handleSendMessage = async (text: string) => {
-    const newMessage = { id: Math.random().toString(36).substr(2,9), senderId: user.id, senderNickname: user.nickname, text, timestamp: Date.now() };
-    await fetch(`/api/rooms/${roomCode}/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: newMessage })
-    });
+    if (!text.trim()) return;
+    const msg = { id: Date.now().toString(), senderId: user.id, senderNickname: user.nickname, text, timestamp: Date.now() };
+    
+    // Оптимистичное обновление для мгновенной реакции
+    setChatMessages(prev => [...prev, msg]);
+
+    try {
+      await fetch(`/api/rooms/${roomCode}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg })
+      });
+    } catch (e) { console.error("Chat send failed"); }
   };
 
   return (
@@ -178,10 +150,9 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
         <header className="h-20 flex items-center justify-between px-8 bg-black/10 backdrop-blur-2xl border-b border-white/5 z-20">
           <div className="flex items-center space-x-5">
             <span className="font-black text-2xl tracking-tighter gradient-text uppercase">TwVoice</span>
-            <div className="h-6 w-[1px] bg-white/10"></div>
             <div className="flex items-center space-x-4 bg-green-500/10 px-3 py-1.5 rounded-xl border border-green-500/20">
               <Activity className="w-3 h-3 text-green-500 animate-pulse" />
-              <span className="text-[10px] font-black text-green-500 tracking-widest uppercase">Live</span>
+              <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Live: {roomCode}</span>
             </div>
           </div>
           <button onClick={onLeave} className="flex items-center space-x-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-6 py-3 rounded-2xl transition-all font-black text-[11px] uppercase border border-red-500/20">
@@ -189,13 +160,11 @@ const RoomPage: React.FC<RoomPageProps> = ({ roomCode, user, onLeave }) => {
           </button>
         </header>
         <main className="flex-1 p-10 overflow-y-auto relative custom-scrollbar">
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center justify-center h-full">
-              {participants.map(p => (
-                <VideoTile key={p.id} participant={p} viewerIsAdmin={user.isAdmin} />
-              ))}
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center justify-center">
+              {participants.map(p => <VideoTile key={p.id} participant={p} viewerIsAdmin={user.isAdmin} />)}
            </div>
         </main>
-        <div className={`absolute bottom-10 left-1/2 -translate-x-1/2 z-50`}>
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50">
            <ControlBar 
               isMicOn={isMicOn} isCamOn={isCamOn} isDeafened={isDeafened} isScreenSharing={isSharingScreen}
               onToggleMic={toggleMic} onToggleCam={() => setIsCamOn(!isCamOn)} onToggleDeafened={() => setIsDeafened(!isDeafened)}
