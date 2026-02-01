@@ -45,7 +45,7 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
         const source = audioContext.createMediaStreamSource(participant.stream);
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.4; // Чуть меньше сглаживания в самом анализаторе
+        analyser.smoothingTimeConstant = 0.4; // Меньше сглаживания для более резкой реакции
         source.connect(analyser);
         
         analyserRef.current = analyser;
@@ -61,7 +61,7 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
           }
           const average = sum / dataArrayRef.current.length;
           
-          // ПОВЫШЕННАЯ ЧУВСТВИТЕЛЬНОСТЬ: делим на 15 вместо 45
+          // ВЫСОКАЯ ЧУВСТВИТЕЛЬНОСТЬ: делим на 15 вместо 45
           const normalized = Math.min(1, average / 15); 
           // БОЛЕЕ БЫСТРАЯ РЕАКЦИЯ: коэффициент 0.7 вместо 0.5
           setVolume(prev => prev + (normalized - prev) * 0.7); 
@@ -84,7 +84,7 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
       let lastUpdate = 0;
 
       const updateSimulatedVolume = (time: number) => {
-        if (time - lastUpdate > 50) { // Симуляция тоже стала быстрее
+        if (time - lastUpdate > 50) {
           if (Math.random() > 0.7) {
             targetVol = Math.random() * 0.9;
           } else if (Math.random() > 0.4) {
@@ -123,13 +123,12 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
         boxShadow: participant.isMicOn && volume > 0.02 ? `0 0 ${glowIntensity}px rgba(138, 43, 226, ${Math.min(1, volume * 1.5)})` : undefined
       }}
     >
-      {/* ADMIN PANEL ON HOVER */}
+      {/* ADMIN PANEL */}
       {viewerIsAdmin && !participant.isAdmin && participant.id !== '1' && (
         <div className="absolute top-6 right-6 z-50 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
            <button 
              onClick={(e) => { e.stopPropagation(); onMute?.(participant.id); }}
              className="bg-black/70 backdrop-blur-xl border border-white/10 hover:bg-orange-500 p-3 rounded-2xl text-white transition-all active:scale-90 flex items-center space-x-2 shadow-2xl"
-             title="Замутить участника"
            >
              <MuteIcon className="w-4 h-4" />
              <span className="text-[10px] font-black uppercase">Замутить</span>
@@ -137,7 +136,6 @@ const VideoTile: React.FC<VideoTileProps> = ({ participant, compact, viewerIsAdm
            <button 
              onClick={(e) => { e.stopPropagation(); onKick?.(participant.id); }}
              className="bg-black/70 backdrop-blur-xl border border-white/10 hover:bg-red-500 p-3 rounded-2xl text-white transition-all active:scale-90 flex items-center space-x-2 shadow-2xl"
-             title="Выгнать участника"
            >
              <UserX className="w-4 h-4" />
              <span className="text-[10px] font-black uppercase">Выгнать</span>
