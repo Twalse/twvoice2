@@ -14,11 +14,15 @@ const App: React.FC = () => {
     
     try {
       // Регистрируем комнату на сервере
-      await fetch('/api/rooms', {
+      const response = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code })
       });
+
+      if (!response.ok) {
+        throw new Error('Server error during room registration');
+      }
 
       const newUser: User = {
         id: Math.random().toString(36).substring(2, 9),
@@ -30,12 +34,15 @@ const App: React.FC = () => {
         isDeafened: false,
         isSharingScreen: false,
       };
+      
       setRoomCode(code);
       setCurrentUser(newUser);
       setCurrentPage(AppState.ROOM);
+      return Promise.resolve();
     } catch (err) {
       console.error("Failed to create room on server:", err);
-      alert("Ошибка при создании комнаты. Попробуйте еще раз.");
+      alert("Ошибка при создании комнаты. Проверьте интернет или статус сервера.");
+      return Promise.reject(err);
     }
   };
 
